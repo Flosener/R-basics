@@ -1,0 +1,219 @@
+---
+title: "IDA 2019: HW9"
+author: "Florian Pätzold 977687, Ramon Zacharias 977316, Daniel Menzel 979379"
+date: "01/21/2020"
+output: html_document
+---
+
+```{r echo=F}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=F}
+library(tidyverse)
+```
+
+# Exercise 1: Bayes factors for memory decay model (16 points)
+### Estimating the marginal likelihood with MC sampling (6 points)
+
+```{r message=TRUE}
+# data ----
+
+# time after memorization (in seconds)
+t <- c(1, 3, 6, 9, 12, 18)
+# proportion (out of 100) of correct recall
+y <- c(.94, .77, .40, .26, .24, .16)
+# number of observed correct recalls (out of 100)
+obs <- y * 100
+
+# likelihood functions for models
+
+# likelihood function exponential model
+lhExp <- function(a, b){
+  theta <- a*exp(-b*t)
+  theta[theta <= 0.0] <- 1.0e-5
+  theta[theta >= 1.0] <- 1-1.0e-5
+  prod(dbinom(x = obs, prob = theta, size = 100))
+}
+
+# likelihood function power model
+lhPow <- function(c, d){
+  theta <- c*t^(-d)
+  theta[theta <= 0.0] <- 1.0e-5
+  theta[theta >= 1.0] <- 1-1.0e-5
+  prod(dbinom(x = obs, prob = theta, size = 100))
+}
+
+# naive Monte Carlo sampling to approximate the marginal likelihood:
+# - repeat the folowing `n_samples` times
+# -- sample a pair of parameters from the prior distribution
+# -- calculate the likelihood of the data for the sampled parameter values
+# - take the average over all `n_samples` values 
+
+n_samples <- 1000000
+
+# marginal likelihood of expoential model
+marg_lh_exponential <- 
+  map_dbl(
+    1:n_samples,
+    function(i) {
+      # sample parameter values from the prior distribution
+      # - any value between 0 and 1.5 is equally likely
+      a <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      b <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      return(lhExp(a,b))
+    }
+  ) %>% 
+  mean()
+
+# marginal likelihood of power model
+marg_lh_power <- 
+  map_dbl(
+    1:n_samples,
+    function(i) {
+      # sample parameter values from the prior distribution
+      # - any value between 0 and 1.5 is equally likely
+      c <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      d <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      return(lhPow(c,d))
+    }
+  ) %>% 
+  mean()
+
+message(
+  "BF in favor of exponential model: ", 
+  signif(sum(marg_lh_exponential) / sum(marg_lh_power),6)
+)
+```
+
+Based on bayes factor we conclude that the data provides overwhelming evidence in favor of the exponential model (by a factor of about 1190). We therefore prefer that model over the power model to explain our data.
+
+### Exploring the effects of priors on marginal likelihood (10 points)
+
+```{r}
+plot_prior_samples <- function(shape1_parameter_1 = 1,
+                               shape2_parameter_1 = 1,
+                               shape1_parameter_2 = 1,
+                               shape2_parameter_2 = 1) {
+  parameter_1 <- rbeta(
+    n =10000, # how many samples
+    shape1 = shape1_parameter_1, 
+    shape2 = shape2_parameter_1
+  ) * 1.5
+  parameter_2 <- rbeta(
+    n =10000, # how many samples
+    shape1 = shape1_parameter_2, 
+    shape2 = shape2_parameter_2
+  ) * 1.5
+  tibble(
+    parameter_1,
+    parameter_2
+  ) %>% 
+    ggplot(aes(x = parameter_1, y = parameter_2)) +
+    geom_point(alpha = 0.2) + xlim(0,1.5) + ylim(0,1.5)
+}
+# that's the flat/uniform priors as used in the lecture
+plot_prior_samples(1,20,1,20)
+```
+
+```{r message=T}
+marg_lh_exponential <- 
+  map_dbl(
+    1:n_samples,
+    function(i) {
+      # sample parameter values from the prior distribution
+      # - any value between 0 and 1.5 is equally likely
+      a <- rbeta(n = 1, shape1 = 1, shape2 = 20) * 1.5
+      b <- rbeta(n = 1, shape1 = 1, shape2 = 20) * 1.5
+      return(lhExp(a,b))
+    }
+  ) %>% 
+  mean()
+
+# marginal likelihood of power model
+marg_lh_power <- 
+  map_dbl(
+    1:n_samples,
+    function(i) {
+      # sample parameter values from the prior distribution
+      # - any value between 0 and 1.5 is equally likely
+      c <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      d <- rbeta(n = 1, shape1 = 1, shape2 = 1) * 1.5
+      return(lhPow(c,d))
+    }
+  ) %>% 
+  mean()
+
+message(
+  "BF in favor of power model: ", 
+  signif(sum(marg_lh_power) / sum(marg_lh_exponential),6)
+)
+```
+
+By choosing $\beta = 20$ for our priors of the exponential model we move the prior distribution of parameters to the left (parameter a) and down (parameter b), which makes the probability of our maximum likelihood estimate very low thus lowering the posterior probability of the whole model. Therefore bayes factor overwhelmingly favors the power model over the exponential model.
+
+# Exercise 2: Testing hypotheses about coins (32 points)
+### Frequentist p-value (8 points)
+
+```{r}
+binom.test(x = 21, n = 30, p = 0.5, alternative = "two.sided")
+```
+
+Using the binomial test we got a significant test result (N=30, k=21, p-value = 0.042), which means we found evidence against the null hypothesis. Therefore, we reject $H_0: \theta=0.5$ and accept the alternative hypothesis of the coin not being fair.
+
+### Bayesian estimation-based testing for a point-valued hypothesis (8 points)
+
+```{r}
+interval <- tibble(
+  # shape1 = alpha = heads+1 = 22, shape2 = beta = tails+1 = 10
+  `lower_Bayes` = HDInterval::hdi(function(x) qbeta(x, 22,10))[1],
+  `upper_Bayes` = HDInterval::hdi(function(x) qbeta(x, 22,10))[2],
+) %>% 
+  pivot_longer(
+    everything(),
+    names_pattern = "(.*)_(.*)",
+    names_to = c(".value", "approach")
+  )
+interval
+```
+
+The point-value $\theta=0.5$ is out of bounds which means we might reject our hypothesis of the coin being fair.
+
+### Bayesian estimation-based testing for ROPE-d hypothesis (8 points)
+
+```{r}
+interval <- tibble(
+  # ROPE-d interval is our point-valued HDI + epsilon (0.01)
+  `lower_Bayes` = HDInterval::hdi(function(x) qbeta(x, 22,10))[1] + 0.01,
+  `upper_Bayes` = HDInterval::hdi(function(x) qbeta(x, 22,10))[2] + 0.01,
+) %>% 
+  pivot_longer(
+    everything(),
+    names_pattern = "(.*)_(.*)",
+    names_to = c(".value", "approach")
+  )
+interval
+```
+
+Even after using the ROPE-d approach, $\theta = 0.5$ is excluded from our confidence interval, which is why we again reject the null hypothesis of the coin being fair.
+
+### Savage Dickey model comparison for point-valued hypothesis (8 points)
+
+```{r}
+# point-value of nested model M0
+theta_star <- 0.5
+# posterior probability in nesting model
+posterior_theta_star <- dbeta(theta_star, 22, 10)
+# prior probability in nesting model
+prior_theta_star <- dbeta(theta_star, 1, 1)
+# Bayes factor (using Savage Dickey)
+BF01 <- posterior_theta_star / prior_theta_star
+BF01
+```
+
+As our bayes factor of the alternative model is very low ($BF_{10} \approx 2.421$) we might not conclude any (strong) evidence against the null hypothesis which is why we cannot say significantly whether the coin is fair or not.
+
+

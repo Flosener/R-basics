@@ -1,0 +1,155 @@
+---
+title: "IDA 2019: HW9"
+author: "Florian Pätzold 977687, Ramon Zacharias 977316, Daniel Menzel 979379"
+date: "01/21/2020"
+output: html_document
+---
+
+```{r echo=F}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=F}
+library(tidyverse)
+library(cowplot)
+```
+
+# Exercise 1: Comparing two groups with a t-test (20 points)
+
+```{r}
+group_1 <- c(
+  104, 105, 100, 91, 105, 118, 164, 168, 111, 107, 136, 149, 104, 114, 107, 95, 
+  83, 114, 171, 176, 117, 107, 108, 107, 119, 126, 105, 119, 107, 131
+)
+group_2 <- c(
+  133, 115, 84, 79, 127, 103, 109, 128, 127, 107, 94, 95, 90, 118, 124, 108, 
+  87, 111, 96, 89, 106, 121, 99, 86, 115, 136, 114
+)
+
+t.test(
+  x = group_1,
+  y = group_2,
+  alternative = "two.sided",
+  mu = 0, # mu is actually delta, i.e. the difference between mean of group 1 and mean of group 2
+  paired = FALSE,
+  var.equal = TRUE
+)
+```
+
+After using student's t-test model to compare the difference in our two sample groups, we get significant test result (t = 2.0901, df = 55, p-value = 0.04124) under the condition that $\alpha = 0.05$. We might conclude from this result, that we can reject the null hypothesis $H_0: \delta = 0$, which means that we actually got a difference of means between the two groups.
+
+# Exercise 2: Pearson’s χ2-test of independence (20 points)
+
+```{r}
+observed_counts <- matrix(
+  c(
+    31,56,23,
+    104,67,12,
+    24,34,42,
+    19,16,8
+  ),
+  nrow = 4,
+  byrow = T,
+  dimnames = list(
+    program = c("CogSci", "Psych", "Computer Science", "Philosophy"),
+    preference = c("frequentist", "Bayes", "bootstrap")
+    
+  )
+)
+observed_counts # Let's take a look at our data
+
+# N <- sum(observed_counts) # Parameter N (observed) is the total number of observations
+# p_row <- rowSums(observed_counts)/N # Get relative counts in rows
+# p_col <- colSums(observed_counts)/N # Get relative counts in columns
+# expectation_matrix <- (p_row %o% p_col) * N # Get the predicted observations
+# expectation_vector <- as.vector(expectation_matrix) # Transform into vector for built in chi-squared test
+
+chisq.test(x = observed_counts, correct = FALSE)
+```
+
+We used the chi-squared test and got a significant test result (X-squared = 69.473, df = 6, p-value = 5.243e-13) under the assumption that $\alpha = 0.05$, which is why we conclude that there is indeed strong evidence against the assumption of independence between study program and statistical method preferences ($H_0$). Therefore, we can claim to have found evidence in favor of the research hypothesis of whether the preferences of statistical methods differ between different fields of study.
+
+# Exercise 3: Understanding a mystery function (8 points)
+
+```{r}
+mysterious_function <- function(vec) {
+  map_lgl(
+    1:(length(vec)-1),
+    function(i) {vec[i] == vec[i+1]}
+  ) %>% sum()
+}
+
+mysterious_function(c(1,2,1,1,1,1,2,3,3,4))
+```
+
+The mysterious function takes as input a vector and counts the number of successive entries, which are equal to one another (how often was entry i equal to the following entry i+1).
+
+# Exercise 4: Simulating a p-value for a custom-made test statistic (30 points)
+### Binomial test of fairness (4 points)
+
+```{r}
+binom.test(
+  x = 15, # tests statistic k is number of heads / successes (observed)
+  n = 30, # total number of coin flips / observations (observed)
+  p = 0.5, # coin bias, theta = 0.5 indicates that the coin is fair
+  alternative = "two.sided"
+)
+```
+
+Using the binomial test we got no significant test result (N=30, k=15, p-value = 1), which means we did not found strong evidence against the null hypothesis (we actually found no evidence whatsoever). Therefore, we cannot reject $H_0: \theta=0.5$. The coin might be fair.
+
+### Questioning independence based on swaps (4 points)
+
+```{r}
+number_of_swaps <- function(vec) {
+  map_lgl(
+    1:(length(vec)-1),
+    function(i) {vec[i] != vec[i+1]}
+  ) %>% sum()
+}
+
+obs_1 <- rep(c(1,0), each = 15)  # 15 ones followed by 15 zeros
+obs_2 <- rep(c(1,0), times = 15) # 15 pairs of one-zero
+obs_3 <- c(1,1,1,1,0,0,0,0,0,0,1,1,1,1,0,0,0,1,1,0,0,1,1,1,1,0,0,0,0,1)
+
+number_of_swaps(obs_1)
+number_of_swaps(obs_2)
+number_of_swaps(obs_3)
+```
+
+### Approximating a sampling distribution via sampling (8 points)
+
+```{r}
+sample_nr_swaps <- function(n_samples) {
+  swaps_count <- c()
+  for(i in 1:n_samples) {
+    swaps_count[i] = number_of_swaps(sample(c(1,0), size = 30, replace = T))
+  }
+  return(swaps_count)
+}
+sample_nr_swaps(30)
+```
+
+### Plot the sampling distribution (6 points)
+
+```{r}
+tibble(swaps = sample_nr_swaps(100000)) %>%
+dplyr::count(swaps) %>%
+ggplot(aes(x = swaps, y = n)) +
+  geom_col()
+```
+
+### Compute a p-value with MC-sampling (8 points)
+
+```{r}
+n_samples <- 100000
+MC_sampling_p_value <- function(n_samples) {
+  mean(sample_nr_swaps(n_samples) <= number_of_swaps(obs_3))
+}
+MC_sampling_p_value(n_samples)
+```
+
+Using our hypothesis test via MC-sampling we get a significant test result (N=100000, swaps=8, p-value $\approx$ 0.012), which means we found strong evidence against, and therefore reject, our null hypothesis / research question that the flips are independent. We conclude that the coin flips probably are dependent on one another.

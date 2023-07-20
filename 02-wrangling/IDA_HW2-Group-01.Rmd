@@ -1,0 +1,171 @@
+---
+title: 'IDA 2019: Homework 2'
+author: "Group 01"
+date: "11/18/2019"
+output: html_document
+---
+# Data wrangling & summary statistics
+
+```{r echo=FALSE}
+
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+
+```
+
+```{r echo=FALSE}
+
+library(tidyverse)
+
+```
+
+## Exercise 1: Fictitious data from a button-press reaction time experiment
+### Exercise 1.A: Tidy up the mess
+
+```{r}
+
+messy_data <- tribble(
+  ~subject_id,  ~choices,  ~reaction_times,
+  1,            "A,B,B",   "312 433 365",
+  2,            "B,A,B",   "393 491 327",
+  3,            "B,A,A",   "356 313 475",
+  4,            "A,B,B",   "292 352 378"
+)
+
+```
+
+```{r}
+
+tidy_data_choice <- messy_data %>% separate(
+  col = choices,
+  into = str_c("C_", 1:3),
+  sep = ",",
+  convert = TRUE
+) %>% select(subject_id, C_1, C_2, C_3) %>% pivot_longer(
+  cols = -1,
+  names_to = "condition",
+  values_to = "response"
+)
+tidy_data_choice
+
+tidy_data_RT <- messy_data %>% separate(
+  col = reaction_times,
+  into = str_c("C_", 1:3),
+  sep = " ",
+  convert = TRUE
+) %>% select(-2) %>% pivot_longer(
+  cols = -1,
+  names_to = "condition",
+  values_to = "RT"
+)
+tidy_data_RT
+
+tidy_data <- full_join(tidy_data_choice, tidy_data_RT)
+tidy_data
+
+```
+
+### Exercise 1.B: Summarize the reaction times
+
+```{r}
+
+tidy_data %>% 
+  group_by(condition) %>% 
+  summarise(
+    mean_RT = mean(RT)
+  )
+
+```
+
+```{r}
+
+tidy_data %>% 
+  group_by(subject_id) %>% 
+  summarise(
+    mean_RT = round(mean(RT))
+  )
+
+```
+
+## Exercise 2: The King of France visits IDA
+### Exercise 2.A: Experimental design
+
+1) 
+Yes, it is a factorial design. There is one factor: "Condition" with 7 levels, namely "filler", "background_check" and the 5 critical conditions.
+
+2)
+Within-subjects design, since every participant contributes at least one observation to each experimental condition.
+
+3) Pro: You need fewer participants, Con: There is possible cross-contamination between conditions.
+
+4) It is a repeated-measures design, because we have 5 critical conditions for each vignette.
+
+5) The dependent variable of the experiment is "condition". The variable type is an ordered factor.
+
+### Exercise 2.B: Exploring IDA’s King of France
+
+```{r}
+data_KoF_raw_IDA <- 
+  read_csv(url('https://raw.githubusercontent.com/michael-franke/intro-data-analysis/master/data_sets/king-of-france_data_raw_IDA.csv'))
+
+glimpse(data_KoF_raw_IDA)
+```
+
+```{r}
+nrow(data_KoF_raw_IDA)
+data_KoF_raw_IDA %>% pull(submission_id) %>% unique %>% length
+data_KoF_raw_IDA %>% pull(comments) %>% unique
+data_KoF_raw_IDA %>% pull(languages) %>% unique
+data_KoF_raw_IDA %>% pull(age) %>% mean(na.rm = TRUE)
+data_KoF_raw_IDA %>% pull(age) %>% summary
+```
+7.
+- submission_id: ordinal
+- RT: metric
+- correct: boolean
+- education: nominal
+- item_version: nominal
+- question: nominal
+- response: boolean
+- timeSpent: metric
+- trial_name: nominal
+- trial_number: ordinal
+- trial_type: nominal
+- vignette: nominal
+
+## Preprocessing the data
+### Selecting and creating the relevant columns
+
+```{r}
+
+data_KoF_processed_IDA <- data_KoF_raw_IDA %>% 
+  # discard practice trials
+  filter(trial_type != "practice") %>% 
+  mutate(
+    # add a 'condition' variable
+    condition = case_when(
+      trial_type == "special" ~ "background check",
+      trial_type == "main" ~ str_c("Condition ", item_version),
+      TRUE ~ "filler"
+    ) %>% 
+      factor( 
+        ordered = T,
+        levels = c(str_c("Condition ", c(0, 1, 6, 9, 10)), "background check", "filler")
+      )
+  ) %>% select(submission_id, trial_number, condition, vignette, question, correct, response)
+
+```
+
+### Tidy?
+Yes, this last data representation is tidy since each variable from our case study forms a column and each observation forms a line. Also the third condition is met for all of the filled cells form a table. Also, there is no redundant variable in the data representation.
+
+## Towards testing a hypothesis
+
+```{r}
+data_KoF_processed_IDA %>% 
+  filter(
+    condition %in% c("Condition 0", "Condition 1")
+    ) %>% group_by(condition) %>% summarise(proportion_true = mean(response))
+```

@@ -1,0 +1,293 @@
+---
+title: "IDA 2019: HW8"
+author: "Florian Pätzold 977687, Ramon Zacharias 977316, Daniel Menzel 979379"
+date: "01/14/2020"
+output: html_document
+---
+
+```{r echo=F}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=F}
+library(tidyverse)
+library(cowplot)
+```
+
+# Exercise 1: Adressing hypotheses about coin flips with hypothesis testing (45 points)
+
+```{r}
+plot_binomial <- function(theta, N, highlight = NULL) {
+  # put the data together
+  plotData <- tibble(x = 0:N, y = dbinom(0:N, N, theta))
+  # make a simple bar plot
+  out_plot <- ggplot(plotData, aes(x = x , y = y )) + 
+    geom_col(fill = "gray", width = 0.35) +
+    labs(
+      x = "test statistic k",
+      y =  str_c("Binomial(k, ", N, ", ", theta, ")")
+    )
+  # if given, highlight some bars in red
+  if (!is.null(highlight)) {
+    plotData2 = tibble(x = highlight, y = dbinom(highlight, N, theta))
+    out_plot <- out_plot + 
+      geom_col(
+        data = plotData2, 
+        aes(x = x, y = y), 
+        fill = "firebrick", 
+        width = 0.35
+      )  +
+      ggtitle(
+        str_c(
+          "Prob. selected values: ", 
+          sum(dbinom(highlight, N, theta)) %>% signif(5)
+          )
+        )
+  }
+  out_plot
+}
+```
+
+## Case 1: Manufacturer says: “θ=0.8” (20 points)
+### Fix the null-hypothesis (2 points)
+
+Our research question is if the manufacturer's coin really has a bias of $\theta=0.8$. We identify our research question with our null hypothesis which we therefore fix to $H_0=\theta_0=0.8$. As an alternative hypothesis it might be reasonable to choose $H_a=\theta\ne0.8$ as we are not interested in checking whether the coin is biased towards head or tails in general but for a specific bias.
+
+### Plot the sampling distribution (2 points)
+
+```{r}
+plot_binomial(
+  theta = 0.8, 
+  N = 45, 
+  highlight = 42
+)
+```
+
+### More extreme values of k (4 points)
+
+The more extreme values of test statistics k in our specific case with observed $k_{obs}=42$ are the values $P(42)\geq P(k)$ in that they are at least as unlikely as our $k_{obs}$.
+
+```{r}
+plot_binomial(
+  theta = 0.8, 
+  N = 45, 
+  highlight = which(dbinom(0:45, 45,p=0.8) <= dbinom(42, 45,p=0.8))-1
+)
+```
+
+### One- or two-sided test? (2 points)
+
+Since we do not have an interval-valued hypothesis like $\theta \geq 0.8$, i.e. our research question is not about a general bias towards heads/tails, we are interested in both sides of extreme values for k which makes our test a two-sided test.
+
+### p-value (2 points)
+
+The p-value is the probability of observing values of the test statistic k which are at least as extreme evidence against $H_0$ as k = 42. Therefore we sum up all the probabilities of the k's of which the probability to be observed is less than or equally likely as P(k=42).
+
+```{r}
+k_obs <- 42 # observed test statistic k
+N <- 45 # total number of observations N
+theta_0 <- 0.8 # null hypothesis theta_0
+tibble(lh = dbinom(0:N, N, theta_0)) %>% 
+  filter(lh <= dbinom(k_obs, N, theta_0)) %>% 
+  pull(lh) %>% 
+  sum %>% 
+  round(5)
+```
+
+### Compare to built-in function (2 points)
+
+```{r}
+binom.test(
+  x = 42,
+  n = 45,
+  p = 0.8,
+  alternative = "two.sided" # the alternative to compare against is theta != 0.8
+)
+```
+
+### Interpret and report your results (6 points)
+
+We used the binomial test to check whether the trick coin has a bias of 0.8 (research hypothesis identifies with $H_0$). We got a significant test result with $p=0.02389 \leq \alpha = 0.05$ (N=45, k=42). Therefore we might conclude that we can reject our null hypothesis as we gathered enough "extreme" evidence against it, which then renders the research hypothesis and thereby the statement of the manufacturer false (coin bias is not 0.8).
+
+## Case 2: Manufacturer says: “θ≤0.3” (20 points)
+### Fix the null-hypothesis (2 points)
+
+Our research question is if the manufacturer's coin really has a bias towards tails with $\theta \leq 0.3$. We choose $\theta_0 = 0.3$ as it is easier to work with a point-valued than an interval-valued hypothesis and this is the most favorable value in the interval of our research hypothesis. If we find evidence against this single value, it is the most extreme case against $H_0$ and thereby also against the whole research hypothesis. As an alternative hypothesis it might be reasonable to choose $H_a=\theta>0.3$ as we now are interested in checking whether the coin is biased towards tails with $\theta \leq 0.3$ (say: bias at most 0.3).
+
+### Plot the sampling distribution (2 points)
+
+```{r}
+plot_binomial(
+  theta = 0.3, 
+  N = 32, 
+  highlight = 15
+)
+```
+
+### More extreme values of k (4 points)
+
+The more extreme values of test statistics k in our specific case with observed $k_{obs}=15$ are again the values $P(15)\geq P(k)$ in that they are at least as unlikely as our $k_{obs}$. Also, now we just want to get the test statistics which are greater than our observed k since we check an interval-valued research hypothesis.
+
+```{r}
+plot_binomial(
+  theta = 0.3, 
+  N = 32, 
+  # one sided: just check from our k_observed-th value on (15+1 because of -1)
+  highlight = which(dbinom(0:32, 16:32, p=0.3) <= dbinom(15, 32, p=0.3))-1
+)
+```
+
+Note: The probability of the selected values might differ slightly from the p-value because plot_binomial adds P(k=0) and P(k=1). No clue, why.
+
+### One- or two-sided test? (2 points)
+
+Since our research hypothesis now regards an interval of values we use a one sided test.
+
+### p-value (2 points)
+
+The p-value is the probability of observing values of the test statistic k which are at least as extreme evidence against $H_0$ as k = 15 for the counter interval ("alternative interval") of our research hypothesis, namely IA = [16,32]. Therefore we sum up all the probabilities of the k's of which the probability to be observed is less or eually likely as P(k=15) in interval IA.
+
+```{r}
+k_obs <- 15 # observed test statistic k
+N <- 32 # total number of observations N
+theta_0 <- 0.3 # null hypothesis theta_0
+tibble(lh = dbinom(k_obs:N, N, theta_0)) %>% # one-sided test: from observed k to N
+  filter(lh <= dbinom(k_obs, N, theta_0)) %>% 
+  pull(lh) %>% 
+  sum %>% 
+  round(5)
+```
+
+### Compare to built-in function (2 points)
+
+```{r}
+binom.test(
+  x = 15,
+  n = 32,
+  p = 0.3,
+  alternative = "greater" # the alternative to compare against is theta > 0.3
+)
+```
+
+### Interpret and report your results (6 points)
+
+We again used the binomial test to check whether the trick coin has a bias of 0.3 or smaller. We got a significant test result with $p=0.03272 \leq \alpha = 0.05$. Therefore we might conclude that we can reject our null hypothesis as we gathered enough evidence against it, which then renders the research hypothesis and thereby the statement of the manufacturer false (coin bias is actually greater than 0.3).
+
+## Case 3: Manufacturer says: “θ≥0.6” (15 points)
+
+Our research question is if the manufacturer's coin really has a bias towards heads with $\theta \geq 0.6$. We fix the null hypothesis $\theta_0 = 0.6$ as it is easier to work with a point-valued than an interval-valued hypothesis. As an alternative hypothesis it might be reasonable to choose $H_a=\theta<0.6$ as we now are interested in checking whether the coin is biased towards heads with $\theta \geq 0.6$ (say: bias at least 0.6).
+
+As a model we use a binomial one-sided test (research questions demands for an interval-valued hypothesis) with N=100 and test statistic k with observed k=53.
+
+Plotting sampling distribution (binomial):
+```{r}
+plot_binomial(
+  theta = 0.6, 
+  N = 100, 
+  highlight = 53
+)
+```
+
+Plotting more extreme values for k with $P(k)\leq P(53)$ for IA=[0,53]:
+```{r}
+plot_binomial(
+  theta = 0.6, 
+  N = 100,
+  highlight = which(dbinom(0:53, 100, p=0.6) <= dbinom(53, 100, p=0.6))-1
+)
+```
+
+Calculating p-value:
+```{r}
+k_obs <- 53 # observed test statistic k
+N <- 100 # total number of observations N
+theta_0 <- 0.6 # null hypothesis theta_0
+tibble(lh = dbinom(0:k_obs, N, theta_0)) %>% # one-sided test: from 0 to observed k
+  filter(lh <= dbinom(k_obs, N, theta_0)) %>% 
+  pull(lh) %>% 
+  sum %>% 
+  round(5)
+```
+
+Comparing p-value to built-in function:
+```{r}
+binom.test(
+  x = 53,
+  n = 100,
+  p = 0.6,
+  alternative = "less" # the alternative to compare against is theta < 0.6
+)
+```
+
+Interpreting the result:
+
+We again used the binomial test to check whether the trick coin has a bias of 0.6 or greater. Since we got no significant test result with $p=0.09298 > \alpha = 0.05$ (N=100, k=53) we do not have strong enough evidence against the null hypothesis which means we cannot reject it. Therefore, we infer that there is no strong enough evidence against the manufacturer's claim either.
+
+# Exercise 2: Pearson’s χ2-test of goodness of fit (20 points)
+
+```{r}
+n_obs <- c(
+  mega_winner = 1, # hurray!
+  winner = 2,
+  free_ride = 10,
+  consolation = 18,
+  blank = 19
+)
+```
+
+## Plot data and prediction (10 points)
+
+The vector of expected probabilities corresponds to our prediction vector $\vec{p}$ which we identify with our research hypothesis whether the data in vector $n_{obs}$ could be generated with $\vec{p}_0$ (null hypothesis).
+
+```{r}
+expected <- c(
+  mega_winner = 5,
+  winner = 15,
+  free_ride = 15,
+  consolation = 35,
+  blank = 30
+) * sum(n_obs) / 100
+
+funfair_data <- tibble(
+  observations = n_obs, 
+  predictions = expected,
+  category = c("mega_winner", "winner", "free_ride", "consolation", "blank")
+  )
+funfair_data
+
+ggplot(funfair_data, aes(x = reorder(category, observations), fill = category)) +
+  geom_col(aes(y = observations), alpha = 0.75) +
+  geom_errorbar(aes(ymin = predictions, ymax = predictions, colour = category), size = 0.8) +
+  theme(legend.position = "none") +
+  labs(
+    x = "", 
+    subtitle = "Number of observations for each category. 
+Flat lines represent the expected number of observations for each category."
+    )
+```
+
+## Test the vendor’s claim (10 points)
+
+We have exactly 20% of cells (one cell) with expected frequencies under 5. This is why we can use the chi-squared test.
+
+```{r}
+# x is our vector with observed tickets, p is the vendor's probability vector (expectation)
+chisq.test(x = n_obs, p = expected/sum(n_obs), correct = FALSE)
+```
+
+Using a chi-squared test we get a non-significant test result (X^2 = 6.8476, df = 4, p = 0.1442) which means that we do not reject the null hypothesis $\vec{p}_0$. Therefore, we might conduct that the vendor's expectation is plausible.
+
+# Exercise 3: Some claims about frequentist testing (15 points)
+
+1. False, the p-value determines how likely it is to sample the generated data under the assumption that the null hypothesis is true.
+
+2. True.
+
+3. False, under the assumption of $\alpha = 0.05$, the 95% CI does NOT include our theta, but the outliery 5% do.
+
+4. True, but only under the condition that $\theta$ (mean and variance) is equal for every random variable of our data.
+
+5. False, we get at least 5% if it was right to reject the $H_0$ and at maximum 5% if we falsely rejected the $H_0$.

@@ -1,0 +1,211 @@
+---
+title: 'IDA 2019: Homework 5'
+author: "Florian Pätzold: 977687, Ramon Zacharias: 977316, Daniel Menzel: 979379"
+date: "12/4/2019"
+output: html_document
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=FALSE}
+library(tidyverse)
+library(cowplot)
+```
+
+# Exercise 0: Bootstrapped confidence interval
+## Small vector (10 points)
+
+We have vector $$\vec{d} = (1, 2, 3)$$ and we sample 27 times with replacement; we get $$D_{reps}:$$
+
+```{r echo=FALSE}
+dreps_tibble <- tribble(
+  ~samples1,   ~means1, ~samples2,   ~means2,  ~samples3,   ~means3,
+   "(1,1,1)",  1,       "(2,1,1)",  1.3,      "(3,1,1)",  1.6,
+   "(1,1,2)",  1.3,     "(2,1,2)",  1.6,      "(3,1,2)",  2,
+   "(1,1,3)",  1.6,     "(2,1,3)",  2,        "(3,1,3)",  2.3,
+   "(1,2,1)",  1.3,     "(2,2,1)",  1.6,      "(3,2,1)",  2,
+   "(1,2,2)",  1.6,     "(2,2,2)",  2,        "(3,2,2)",  2.3,
+   "(1,2,3)",  2,       "(2,2,3)",  2.3,      "(3,2,3)",  2.6,
+   "(1,3,1)",  1.6,     "(2,3,1)",  2,        "(3,3,1)",  2.3,
+   "(1,3,2)",  2,       "(2,3,2)",  2.3,      "(3,3,2)",  2.6,
+   "(1,3,3)",  2.3,     "(2,3,3)",  2.6,      "(3,3,3)",  3
+)
+dreps_tibble
+```
+
+Consequently, we have our vector $$\mu_{sampled} = (1, \frac{4}{3}, \frac{4}{3}, \frac{4}{3}, \frac{5}{3}, \frac{5}{3}, \frac{5}{3}, \frac{5}{3}, \frac{5}{3}, \frac{5}{3}, 2, 2, 2, 2, 2, 2, 2, \frac{7}{3}, \frac{7}{3}, \frac{7}{3}, \frac{7}{3}, \frac{7}{3}, \frac{7}{3}, \frac{8}{3}, \frac{8}{3}, \frac{8}{3}, 3).$$
+
+We now calculate the 2.5% quantile (lower boundary) of our new vector:  
+- observations in our vector n = 27  
+- quantile percentage for lower boundary q = 0.025  
+- 0.025 * (27) = 0.675 
+- round to 1 (because we want to find the boundary where 2.5% of our elements lie below)
+--> this indicates that our lower boundary is at position 1 and is therefore = 1
+
+
+
+## Larger vector (4 points)
+
+```{r}
+## takes a vector of numbers and returns bootstrapped 95% ConfInt
+## for the mean, based on `n_resamples`
+bootstrapped_CI <-  function(data_vector, n_resamples = 1e5) {
+  resampled_means <- map_dbl(1:n_resamples, function(i) {
+       mean(sample(x = data_vector, 
+                   size = length(data_vector), 
+                   replace = T)
+       )
+    }
+  )
+  tibble(
+    'lower' = quantile(resampled_means, 0.025),
+    'mean'  = mean(data_vector),
+    'upper' = quantile(resampled_means, 0.975)
+  ) 
+}
+
+d1 = c(1,2,3)
+d2 = rep(d1,2)
+d3 = rep(d1,10)
+bootstrapped_CI(d1)
+bootstrapped_CI(d2)
+bootstrapped_CI(d3)
+```
+
+## Effect of vector size (6 points)
+
+There are now more elements in the vector which are the repeatedly same elements as before. When we now resample Dreps from this vector, the lower and upper boundaries get closer to the mean since there are more Drep vectors with mean closer or equal to 2 than there are outliers. Therefore the 95% get kind of "filled" with more means closer to 2 and the boundaries move closer to that mean.
+
+# Exercise 1: Another flip-and-draw scenario (14 points)
+## Joint probability table (4 points)
+
+|           |       **Heads**      |       **Tails**       |
+|:---------:|:--------------------:|:---------------------:|
+| White     | 0.75 * 0.6 = 0.45    | 0.25 * 0.2 = 0.05     |
+| Black     | 0.75 * 0.3 = 0.225   | 0.25 * 0.5 = 0.125    |
+| Red       | 0.75 * 0.1 = 0.075   | 0.25 * 0.3 = 0.075    |
+
+## Marginal probability (2 points)
+
+P(red) = 0.075 + 0.075 = 0.15
+
+## Conditional probability (4 points)
+
+P(A|B) = P(A,B) / P(B)  
+P(red | {red, white}) = P(red) / (P(red) + P(white))  
+P(red | {red, white}) = 0.15 / (0.15 + 0.5) = 0.231
+
+The conditional probability of observing red given that we observed a ball that is either red or white is the joint probability/intersection of observing a red ball and observing a red or white ball (which merges to just observing red) divided by the probability of the observed ball being red or white (mutually exclusive/independent).
+
+## Bayes rule (4 points)
+
+P(head|red) = P(red|head) * P(head) / P(red) = 0.1 * 0.75 / 0.15 = 0.5
+
+The conditional probability of a heads outcome given that we observed the draw of a red ball is the conditional probability of observing red given heads times the probability of heads divided by the marginal probability of a red ball being drawn.
+
+# Exercise 2: Bayes rule for medical tests (5 points)
+
+P(elevated) = 50/1000 = 0.05  
+P(warning|elevated) = 0.995  
+P(warning|-elevated) = 0.02
+P(warning) = P(warning,elevated) + P(warning,-elevated) = 0.995 * 0.05 + 0.02 * (1-0.05) = 0.06875
+
+P(elevated|warning) = P(warning|elevated) * P(elevated) / P(warning) = 0.995 * 0.05 / 0.06875 = 0.7236
+
+Person X can be about 72,4% certain to have an elevated blood sugar level if the device gives a warning signal.
+
+# Exercise 3: Bayes’ Rule and Bertrand’s Box Paradox (5 points)
+
+P(GG) = P(SS) = P(GS) = 1/3
+P(G) = 1/3 * 1 + 1/3 * 1/2 + 1/3 * 0 = 1/2 (GG drawer, GS drawer, SS drawer)
+P(GG|G) = P(G|GG) * P(GG) / P(G) = 1 * 1/3 / 1/2 = 2/3
+
+The probability of drawing a second gold coin is the probability of drawing a gold coin having chosen drawer GG (=1) times the probability of me choosing drawer GG (=1/3) divided by the probability of drawing a gold coin in general (=1/2) so that we get 2/3.
+
+# Exercise 4: Normal distribution from a random walk process (24 points)
+## Let the critters roam (6 points)
+
+```{r}
+# Initializing critters and their position
+n_critters <- 10000
+critter_positions <- rep(0, n_critters)
+n_steps <- 10000
+
+# Updating critter positions after 10000 steps
+for(i in 1:n_steps) {
+  critter_positions <- critter_positions + runif(n = n_critters, min = -1, max = 1)
+}
+```
+
+## Get summary statistics (2 points)
+
+```{r}
+critter_mean <- mean(critter_positions)
+critter_mean
+critter_stddev <- sd(critter_positions)
+critter_stddev
+```
+
+## Plot the critter positions (7)
+
+```{r}
+# Get the 10000 random samples from the normal distribution and turn them into a tibble
+normal_samples <- rnorm(n = n_critters, mean = critter_mean, sd = critter_stddev)
+normal_samples <- tibble(samples = normal_samples, source = "normal_samples")
+
+# Turn the critter positions into a tibble (necessary for binding)
+critter_positions <- tibble(samples = critter_positions, source = "critter_positions")
+
+# Bind both tibbles together row-wise and plot the data
+rbind(normal_samples, critter_positions) %>%
+ggplot(aes(x = samples, color = source, fill = source)) +
+  geom_density(alpha = 0.5) +
+  labs(
+    x = "value",
+    y = "density"
+  )
+```
+
+## Repeat for fewer samples (5 points)
+
+```{r}
+# Now we are doing the same but for only 50 critters
+n_critters <- 50
+critter_positions <- rep(0, n_critters)
+
+# 50 critters, each walking 10000 steps
+for(i in 1:n_steps) {
+  critter_positions <- critter_positions + runif(n = n_critters, min = -1, max = 1)
+}
+
+# Calculating the updated mean and standard deviation
+critter_mean <- mean(critter_positions)
+critter_mean
+critter_stddev <- sd(critter_positions)
+critter_stddev
+
+# Updating the normal samples with the new mean and sd and turning them into a tibble
+normal_samples <- rnorm(n = n_steps, mean = critter_mean, sd = critter_stddev)
+normal_samples <- tibble(samples = normal_samples, source = "normal_samples")
+# Turning the critter positions into a tibble
+critter_positions <- tibble(samples = critter_positions, source = "critter_positions")
+
+# Bind the two new tibbles again and plot them
+rbind(normal_samples, critter_positions) %>%
+ggplot(aes(x = samples, color = source, fill = source)) +
+  geom_density(alpha = 0.5) +
+  labs(
+    x = "value",
+    y = "density"
+  )
+```
+
+## Interpret the critter walks (4 points)
+
+This random process of wiggling critters has an uncertain outcome. Therefore if we have more samples in our data (10000 critters), i.e. a larger set of samples, we can better approximate the probability of a certain position after 10000 steps (approaching a limit).
+With a larger set of samples we approximate the normal distribution.

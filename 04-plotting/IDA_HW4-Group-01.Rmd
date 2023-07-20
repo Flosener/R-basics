@@ -1,0 +1,144 @@
+---
+title: 'IDA 2019: Homework 4'
+author: "Group 01"
+date: "12/1/2019"
+output: html_document
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=FALSE}
+library(tidyverse)
+library(cowplot)
+```
+
+```{r echo=FALSE}
+## takes a vector of numbers and returns bootstrapped 95% ConfInt
+## for the mean, based on `n_resamples`
+bootstrapped_CI <-  function(data_vector, n_resamples = 1e5) {
+  resampled_means <- map_dbl(1:n_resamples, function(i) {
+       mean(sample(x = data_vector, 
+                   size = length(data_vector), 
+                   replace = T)
+       )
+    }
+  )
+  tibble(
+    'lower' = quantile(resampled_means, 0.025),
+    'mean'  = mean(data_vector),
+    'upper' = quantile(resampled_means, 0.975)
+  ) 
+}
+```
+
+# Exercise 2: Correlation is invariant under positive linear transformation (16 points)
+
+![](/Users/florian/Documents/Studium/Semester_3/Statistics and Data analysis/hw4-2.jpg)
+
+# Exercise 3: Plotting bars for the WHO data
+## Read the data into R (2 points)
+
+```{r}
+url_prefix <- "https://raw.githubusercontent.com/michael-franke/intro-data-analysis/master/data_sets/"
+WHO_data_url  <- str_c(url_prefix, "WHO.csv")
+
+d <- read_csv(WHO_data_url)
+glimpse(d)
+```
+
+## Make a bar plot with geom_bar (4 points)
+
+```{r}
+d %>% ggplot(aes(x = Region)) + 
+  geom_bar() +
+  labs(
+    x = "Region",
+    y = "Number of countries in data set"
+  )
+```
+
+## Make a bar plot with geom_col (4 points)
+
+```{r}
+countries_per_region <- d %>% group_by(Region) %>% 
+  summarise(countries_per_region = n()) %>%
+  ggplot(aes(fct_reorder(Region, countries_per_region, .desc=TRUE), y = countries_per_region)) + 
+  geom_col() +
+  labs(
+    title = "Countries per region",
+    x = "Region",
+    y = "Number of countries in data set"
+  )
+countries_per_region
+```
+
+## Plotting population per region (4 points)
+
+```{r}
+population_per_region <- d %>% group_by(Region) %>% 
+  summarise(total_population = sum(Population)) %>%
+  ggplot(mapping = aes(x = Region, y = total_population)) + 
+  geom_col() +
+  labs(
+    title = "Population per region",
+    x = "Region",
+    y = "Population"
+  )
+population_per_region
+```
+
+## Combining plots (4 points)
+
+```{r}
+plot_grid(countries_per_region, population_per_region, nrow = 2)
+```
+
+# Exercise 4: Violin plots for the WHO data
+## Create summary statistics (4 points)
+
+```{r}
+d %>% group_by(Region) %>% summarise(
+  Min = min(ChildMortality),
+  "0.25_quant" = quantile(ChildMortality, 0.25),
+  "0.5_quant" = quantile(ChildMortality, 0.5),
+  mean = mean(ChildMortality),
+  "0.75_quant" = quantile(ChildMortality, 0.75),
+  Max = max(ChildMortality)
+  )
+```
+
+## Violin plots for group comparisons (of means) (6 points)
+
+```{r}
+WHO_data <- d %>% group_by(Region) %>% 
+  mutate(mean_cm = mean(ChildMortality)) %>% 
+  ungroup()
+
+WHO_data %>% ggplot() + geom_violin(aes(fct_reorder(Region, mean_cm), ChildMortality)) +
+  labs(x = "Region")
+```
+
+## Adding means and confidence intervals to the violin plot (6 points)
+
+```{r}
+ci_means_cm <- d %>% group_by(Region) %>% 
+  mutate(mean_cm = mean(ChildMortality)) %>%
+  nest() %>% 
+  summarise(CIs = map(data, function(d) bootstrapped_CI(d$ChildMortality))) %>%
+  unnest(CIs)
+
+WHO_data %>% ggplot() + 
+  geom_violin(aes(fct_reorder(Region, mean_cm), ChildMortality, fill = Region), show.legend=FALSE) +
+  geom_pointrange(mapping = aes(x = Region, y = mean, ymin = lower, ymax = upper), data = ci_means_cm) +
+  labs(x = "Region")
+```
+
+
+
+
+

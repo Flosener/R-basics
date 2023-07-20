@@ -1,0 +1,230 @@
+---
+title: "IDA 2019: HW6"
+author: "Florian Pätzold 977687, Ramon Zacharias 977316, Daniel Menzel 979379"
+date: "12/14/2019"
+output: html_document
+---
+
+```{r echo=F}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=F}
+library(tidyverse)
+library(cowplot)
+```
+
+# Exercise 1: Common probability distributions in R (30 points)
+## Binomial distribution
+### Plot the binomial distribution (6 points)
+
+```{r}
+N <- 24
+x <- seq(from = 0, to = N, by = 1)
+theta_0.2 <- dbinom(x, N, p = 0.2)
+theta_0.5 <- dbinom(x, N, p = 0.5)
+theta_0.7 <- dbinom(x, N, p = 0.7)
+theta_0.9 <- dbinom(x, N, p = 0.9)
+
+theta_0.2 <- tibble(samples = theta_0.2, type = "theta = 0.2", k = x)
+theta_0.5 <- tibble(samples = theta_0.5, type = "theta = 0.5", k = x)
+theta_0.7 <- tibble(samples = theta_0.7, type = "theta = 0.7", k = x)
+theta_0.9 <- tibble(samples = theta_0.9, type = "theta = 0.9", k = x)
+
+rbind(theta_0.2, theta_0.5, theta_0.7, theta_0.9) %>%
+  ggplot(aes(x = k, y = samples)) +
+  geom_col() +
+  facet_wrap(type ~ .) +
+  labs(
+    x = "Number of heads k",
+    y = "Likelihood of observation"
+  )
+```
+
+### Interpret the plot (4 points)
+
+The graphs in each facet show the probability of k heads being observed for different thetas given that the number of coin tosses N is fixed to 24.
+
+### Cumulative probability (4 points)
+
+```{r}
+pbinom(q = 7, N, p = 0.2)
+pbinom(q = 7, N, p = 0.5)
+pbinom(q = 7, N, p = 0.7)
+pbinom(q = 7, N, p = 0.9)
+```
+
+## Normal distribution
+### Sample from the normal distribution and plot (8 points)
+
+```{r}
+n = 10000
+mean_0_sd_1 <- rnorm(n, mean = 0, sd = 1)
+mean_0_sd_5 <- rnorm(n, mean = 0, sd = 5)
+mean_10_sd_1 <- rnorm(n, mean = 10, sd = 1)
+mean_10_sd_5 <- rnorm(n, mean = 10, sd = 5)
+
+mean_0_sd_1 <- tibble(samples = mean_0_sd_1, sigma = "sigma = 1", mean = "mu = 0")
+mean_0_sd_5 <- tibble(samples = mean_0_sd_5, sigma = "sigma = 5", mean = "mu = 0")
+mean_10_sd_1 <- tibble(samples = mean_10_sd_1, sigma = "sigma = 1", mean = "mu = 10")
+mean_10_sd_5 <- tibble(samples = mean_10_sd_5, sigma = "sigma = 5", mean = "mu = 10")
+
+rbind(mean_0_sd_1, mean_0_sd_5, mean_10_sd_1, mean_10_sd_5) %>%
+  ggplot(aes(x = samples)) +
+  geom_histogram() +
+  facet_grid(mean ~ sigma, scales="free_x") +
+  labs(
+    x = "samples",
+    y = "count"
+  )
+```
+
+### Cumulative probability (4 points)
+
+```{r}
+tibble(mu = c(0, 0, 10, 10), sd = c(1, 5, 1, 5), prob = 1-pnorm(q = 0.5, mean = mu, sd = sd))
+```
+
+### Explain these results (4 points)
+
+The probability score of sampling at least 0.5 for mu=0 and sigma=1 is lowest because the there are more samples on the LHS of the boundary of 0.5 which in return means that the surface area from that boundary on is smaller than on the LHS. For mu=0 and sigma=5 the samples are again centered around 0 but now the probabilities of the samples are more even distributed so that P(X>=0.5) gets bigger. For mu=10 and sigma=5 there are now more samples on the RHS of the boundary, followed by mu=10 and sigma=1 where the samples are again centered around 10 but there are no samples smaller than 0.5 such that P(X>=0.5)=1.
+
+# Exercise 2: The T-Test Model
+### Load the avocado price data (2 points)
+
+```{r}
+avocado_data <- read_csv(url('https://raw.githubusercontent.com/michael-franke/intro-data-analysis/master/data_sets/avocado.csv')) %>% 
+  # remove currently irrelevant columns
+  select( -X1 , - contains("Bags"), - year, - region) %>% 
+  # rename variables of interest for convenience
+  rename(
+    total_volume_sold = `Total Volume`,
+    average_price = `AveragePrice`,
+    small  = '4046',
+    medium = '4225',
+    large  = '4770',
+  )
+```
+
+### Write the likelihood function in R (6 points)
+
+```{r}
+lh_ttest <- function(y0, y1, sigma, mu, delta) {
+  # returns the likelihood of observing data y0 and y1 for the given parameter values
+  p0 = dnorm(x = y0, mean = mu, sd = sigma)
+  p1 = dnorm(x = y1, mean = mu + delta, sd = sigma)
+  
+  return(prod(prod(p0), prod(p1)))
+}
+
+# Splitting the data into two tibbles and getting the vectors 
+# of average prices for organical and conventional avocados.
+average_prices <- avocado_data %>% select(average_price, type) %>% group_split(type)
+y1 <- average_prices[[1]]$average_price
+y0 <- average_prices[[2]]$average_price
+
+lh_ttest(y0, y1, sigma = 0.3, mu = 1.65, delta = -0.5)
+
+# this function returns the log-likelihood and also allows delta to be a vector 
+llh_ttest <- function(y0, y2, mu, sigma, delta) {
+  map_dbl(delta, function(d) {
+    sum(dnorm(y0, mu, sigma, log = T)) + sum(dnorm(y1, mu + d, sigma, log = T))
+  }
+  )
+}
+
+llh_ttest(y0, y1, sigma = 0.3, mu = 1.65, delta = -0.5)
+```
+
+### Plot aspects of the likelihood function (6 points)
+
+```{r}
+tibble(
+  x = seq(from = -5, to = 5, by = 0.01), 
+  y = llh_ttest(y0, y1, sigma = 0.4, mu = 1.65, delta = x)
+) %>%
+ggplot(aes(x, y)) +
+  geom_line(size = 2) +
+  labs(x = "Parameter delta", y = "log-likelihood of data")
+```
+
+### Predictive function (6 points)
+
+```{r}
+predict <- function(sigma, mu, delta) {
+  organic = tibble(type = "organic", average_price = rnorm(n = length(y0), mean = mu, sd = sigma))
+  conventional = tibble(type = "conventional", average_price = rnorm(n = length(y1), mean = mu + delta, sd = sigma))
+  
+  return(rbind(organic, conventional))
+}
+```
+
+### Plot samples from the predictive function (6 points)
+
+```{r}
+plot_prediction <- function(sigma, mu, delta) {
+  predict(sigma, mu, delta) %>%
+  ggplot(aes(x = average_price, fill = type)) +
+  geom_histogram(binwidth = 0.01) +
+  facet_wrap(type ~ ., ncol = 1) + 
+  ylab('') +
+  xlab('Average price') +
+  theme(legend.position = "none")
+}
+plot_prediction(sigma = 0.3, mu = 1.65, delta = -0.5)
+```
+
+### Formulate a probabilistic belief (8 points)
+
+We assume that delta is normally distributed with a mean around -0.5 because we can see that the difference of the means of the average prices of organic and conventional avocados is approximately 0.5. We assume that delta is sampled with sigma = 0.3, which is an indicaor of uncertainty. Also the plot generated by plot_prediction is similar to the original data with delta = -0.5.
+
+$\delta \sim {Normal}(\mu= -0.5, \sigma = 0.3)$
+
+# Exercise 3: Mark-Recapture Method (18 points)
+### Urn model (4 points)
+
+No need for a coin flip, we have just one step (one urn). We know variables:  
+K = 20 (number of badged unicorns, observed)  
+n = 24 (number of unicorns met, observed)  
+k = 7 (number of badged unicorns met, observed)  
+x >= 17 (number of unbadged unicorns, latent)  
+
+In the urn there are N balls, K of which are certainly black and we draw 24 times from the urn without resampling and get 7 black balls.
+
+### Model graph (4 points)
+```{r echo=FALSE}
+knitr::include_graphics("/Users/florian/Documents/Studium/Semester_3/Statistics and Data analysis/hw6-3.jpg")
+```
+
+### Likelihood function (6 points)
+```{r}
+
+K <- 20
+x <- 24:300
+n <- 24
+k <- 7
+
+unicorn_data <- tibble(probability=dhyper(k, K, x, n))
+unicorn_data %>%
+  ggplot(aes(x = x, y = probability)) +
+  geom_col() +
+  labs(
+    x = "number of unicorns",
+    y = "likelihood"
+  )
+
+max(unicorn_data$probability)
+```
+
+### Estimate the number of unicorns (4 points)
+
+We assume that the probability is highest for n=49 with p=0.2188162. This number indicates how many unbadged unicorns are in the forest so we add them up with K=20 badged unicorns so we get a total of N = 69 unicorns.
+
+
+
+
+
+

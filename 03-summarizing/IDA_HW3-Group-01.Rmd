@@ -1,0 +1,147 @@
+---
+title: 'IDA 2019: Homework 3'
+author: "Group 01"
+date: "11/26/2019"
+output: html_document
+---
+
+```{r echo=FALSE}
+knitr::opts_chunk$set(
+  warning = FALSE, # supress warnings per default 
+  message = FALSE  # supress messages per default 
+)
+```
+
+```{r echo=FALSE}
+library(tidyverse)
+```
+
+# Exercise 1: Preparing the YouTube data
+## Reading & inspecting the data (4 Points)
+
+```{r}
+url_prefix <- "https://raw.githubusercontent.com/michael-franke/intro-data-analysis/master/data_sets/"
+url_us  <- str_c(url_prefix, "YouTube-US.csv")
+url_de  <- str_c(url_prefix, "YouTube-DE.csv")
+url_cat <- str_c(url_prefix, "YouTube-categories.csv")
+
+Youtube_data_US <- read_csv(url_us)
+Youtube_data_DE <- read_csv(url_de)
+Youtube_data_categories <- read_delim(url_cat, delim = ";")
+
+glimpse(Youtube_data_US)
+glimpse(Youtube_data_DE)
+glimpse(Youtube_data_categories)
+```
+
+## Pruning the data (2 points)
+
+```{r}
+Youtube_data_US <- Youtube_data_US %>% select(title, channel_title, category_id, tags, views, likes, dislikes, comment_count)
+Youtube_data_DE <- Youtube_data_DE %>% select(title, channel_title, category_id, tags, views, likes, dislikes, comment_count)
+```
+
+## Adding a column country (2 points)
+
+```{r}
+Youtube_data_US <- Youtube_data_US %>% mutate(country = "US")
+Youtube_data_DE <- Youtube_data_DE %>% mutate(country = "GER")
+```
+
+## Binding data sets (2 points)
+
+```{r}
+YouTube_data_combined <- rbind(Youtube_data_US, Youtube_data_DE)
+nrow(YouTube_data_combined)
+```
+
+## Joining data sets (2 points)
+
+```{r}
+YouTube_data_full <- full_join(YouTube_data_combined, Youtube_data_categories, by = "category_id")
+glimpse(YouTube_data_full)
+```
+
+# Exercise 2: Exploring the YouTube data
+## Load the pre-processed YouTube data (2 points)
+
+```{r}
+url_prefix <- "https://raw.githubusercontent.com/michael-franke/intro-data-analysis/master/data_sets/"
+url_full  <- str_c(url_prefix, "YouTube-full.csv")
+
+Youtube_data_full <- read_csv(url_full)
+```
+
+## Sorting by mean likes (4 points)
+
+```{r}
+Youtube_data_full %>% group_by(category_name, country) %>% 
+  summarise(mean_likes = mean(likes), mean_dislikes = mean(dislikes)) %>% arrange(desc(mean_likes))
+```
+
+## Most viewed music video in Germany (4 points)
+
+```{r}
+Youtube_data_full %>% 
+  filter(category_name == "Music", country == "GER") %>% 
+  select(category_name, country, title, views, likes) %>%
+  arrange(desc(views)) %>%
+  slice(rows=1)
+```
+
+## Counts of categories (6 points)
+
+```{r}
+Youtube_data_full %>% dplyr::count(category_name) %>% arrange(n)
+Youtube_data_full %>% dplyr::count(category_name) %>% filter(n == median(n))
+```
+
+## Compare means and median (6 points)
+
+```{r}
+Youtube_data_full %>% 
+  select(country, likes, dislikes, category_name) %>% 
+  group_by(country, category_name) %>%
+  filter(category_name == "Music" | category_name == "Science & Technology") %>%
+  summarise(likes_mean = mean(likes), likes_median = median(likes))
+```
+
+In comparison to all users of Youtube, there is a rather marginal amount of very successful artists which still have the most views and likes. Therefore the mean becomes a large number whereas the median still captures many small artists which get less likes.
+
+# Exercise 3: write a function that recovers the mode (12 points)
+
+```{r}
+mode_of_factor <- function(input_vector) {
+  new_tibble <- tibble(input_vector) %>%
+  dplyr::count(input_vector) %>%
+  filter(n == max(n))
+  return(as.character(new_tibble$input_vector))
+}
+bla <- c("a","b","b","b","r","a")
+mode_of_factor(bla)
+```
+
+# Exercise 4: Toying with mean and median (6 points)
+
+Vector: c(1,2,2,3)  
+Single number: 1000
+```{r}
+vec1 <- c(1, 2, 2, 3)
+vec2 <- c(1, 2, 2, 3, 1000)
+mean(vec1)
+median(vec1)
+mean(vec2)
+median(vec2)
+```
+
+# Exercise 5: LaTeX in Rmarkdown (6 points)
+### The (arithmetic) mean:
+$$\mu_\vec{x} = \frac{1}{n}\sum^{n}_{i=1}{x_i}$$
+
+### Variance:
+$$Var(\vec{x}) = \frac{1}{n} \sum_{i=1}^n (x_i - \mu_{\vec{x}})^2$$
+
+
+
+
+
